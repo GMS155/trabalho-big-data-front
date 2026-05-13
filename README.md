@@ -78,8 +78,8 @@ newgrp docker
 #### 4. Clonar o repositório
 
 ```bash
-git clone <url-do-repositorio>
-cd vehicleiq-dashboard
+git clone https://github.com/eng-wanzeler/trabalho-big-data-front.git
+cd trabalho-big-data-front
 ```
 
 #### 5. Verificar se a porta 3000 está livre
@@ -178,8 +178,8 @@ Após instalar, inicie o Docker Desktop e aguarde o ícone da baleia aparecer na
 Abra o **PowerShell** ou o **Terminal** e execute:
 
 ```powershell
-git clone <url-do-repositorio>
-cd vehicleiq-dashboard
+git clone https://github.com/eng-wanzeler/trabalho-big-data-front.git
+cd trabalho-big-data-front
 ```
 
 #### 4. Verificar se a porta 3000 está livre
