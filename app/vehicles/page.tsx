@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, ChevronRight, X, Clock, Car } from "lucide-react";
-import { getVehicles, getVehicleTrips, Trip } from "@/lib/api";
+import { Search, ChevronRight, X, Clock, Car, MapPin, Gauge, BarChart2, Zap, Droplets, AlertTriangle } from "lucide-react";
+import { getVehicles, getVehicleTrips, getVehicleLastPosition, getVehicleSummary, VehicleTrip, LastPosition, VehicleSummary } from "@/lib/api";
 import {
   Table,
   TableBody,
@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState<number[]>([]);
@@ -25,9 +26,17 @@ export default function VehiclesPage() {
   const [search, setSearch] = useState("");
 
   const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const [trips, setTrips] = useState<VehicleTrip[]>([]);
   const [tripsLoading, setTripsLoading] = useState(false);
   const [tripsError, setTripsError] = useState(false);
+
+  const [lastPosition, setLastPosition] = useState<LastPosition | null>(null);
+  const [positionLoading, setPositionLoading] = useState(false);
+  const [positionError, setPositionError] = useState(false);
+
+  const [summary, setSummary] = useState<VehicleSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState(false);
 
   useEffect(() => {
     getVehicles()
@@ -39,8 +48,15 @@ export default function VehiclesPage() {
   const handleVehicleClick = async (vehId: number) => {
     setSelectedVehicle(vehId);
     setTrips([]);
+    setLastPosition(null);
+    setSummary(null);
     setTripsLoading(true);
     setTripsError(false);
+    setPositionLoading(true);
+    setPositionError(false);
+    setSummaryLoading(true);
+    setSummaryError(false);
+
     try {
       const data = await getVehicleTrips(vehId);
       setTrips(data.trips);
@@ -48,6 +64,24 @@ export default function VehiclesPage() {
       setTripsError(true);
     } finally {
       setTripsLoading(false);
+    }
+
+    try {
+      const pos = await getVehicleLastPosition(vehId);
+      setLastPosition(pos);
+    } catch {
+      setPositionError(true);
+    } finally {
+      setPositionLoading(false);
+    }
+
+    try {
+      const s = await getVehicleSummary(vehId);
+      setSummary(s);
+    } catch {
+      setSummaryError(true);
+    } finally {
+      setSummaryLoading(false);
     }
   };
 
@@ -159,7 +193,7 @@ export default function VehiclesPage() {
         )}
       </div>
 
-      {/* Trips Dialog */}
+      {/* Vehicle Dialog */}
       <Dialog
         open={selectedVehicle !== null}
         onOpenChange={(open) => !open && setSelectedVehicle(null)}
@@ -168,46 +202,152 @@ export default function VehiclesPage() {
           <DialogHeader>
             <DialogTitle className="text-foreground flex items-center gap-2">
               <Car className="w-4 h-4 text-primary" />
-              Viagens — Veículo {selectedVehicle}
+              Veículo {selectedVehicle}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 overflow-auto">
-            {tripsLoading ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : tripsError ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Erro ao carregar viagens
-              </p>
-            ) : trips.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Nenhuma viagem encontrada
-              </p>
-            ) : (
-              <div className="space-y-2 pr-1">
-                {trips.map((trip) => (
-                  <div
-                    key={trip.trip_id}
-                    className="flex items-center justify-between p-3 bg-secondary rounded-md border border-border"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <div>
-                        <p className="font-mono text-xs text-foreground/80">
-                          Viagem #{trip.trip_id}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Dia {trip.day_num}
-                        </p>
+          <Tabs defaultValue="trips" className="flex-1 flex flex-col min-h-0">
+            <TabsList className="w-full">
+              <TabsTrigger value="trips" className="flex-1 gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                Viagens
+              </TabsTrigger>
+              <TabsTrigger value="summary" className="flex-1 gap-1.5">
+                <BarChart2 className="w-3.5 h-3.5" />
+                Resumo
+              </TabsTrigger>
+              <TabsTrigger value="position" className="flex-1 gap-1.5">
+                <MapPin className="w-3.5 h-3.5" />
+                Última Posição
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Viagens tab */}
+            <TabsContent value="trips" className="flex-1 overflow-auto mt-3">
+              {tripsLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : tripsError ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Erro ao carregar viagens
+                </p>
+              ) : trips.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Nenhuma viagem encontrada
+                </p>
+              ) : (
+                <div className="space-y-2 pr-1">
+                  {trips.map((trip) => (
+                    <div
+                      key={trip.trip}
+                      className="flex items-center justify-between p-3 bg-secondary rounded-md border border-border"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <div>
+                          <p className="font-mono text-xs text-foreground/80">
+                            Viagem #{trip.trip}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Dia {trip.day}
+                          </p>
+                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Resumo tab */}
+            <TabsContent value="summary" className="flex-1 overflow-auto mt-3">
+              {summaryLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : summaryError || !summary ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Sem dados de resumo disponíveis
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-secondary rounded-md border border-border">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Viagens</p>
+                      <p className="text-xl font-semibold text-foreground tabular-nums">{summary.total_trips}</p>
+                    </div>
+                    <div className="p-3 bg-secondary rounded-md border border-border">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Anomalias</p>
+                      <p className="text-xl font-semibold text-foreground tabular-nums">{summary.anomalies}</p>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <div className="p-3 bg-secondary rounded-md border border-border flex items-center gap-2.5">
+                    <Gauge className="w-4 h-4 text-primary shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Velocidade Média</p>
+                      <p className="text-sm text-foreground font-medium">{summary.avg_speed?.toFixed(1) ?? "—"} km/h</p>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-secondary rounded-md border border-border flex items-center gap-2.5">
+                    <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">RPM Médio</p>
+                      <p className="text-sm text-foreground font-medium">{summary.avg_rpm?.toFixed(0) ?? "—"} RPM</p>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-secondary rounded-md border border-border flex items-center gap-2.5">
+                    <Droplets className="w-4 h-4 text-blue-400 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Combustível Estimado</p>
+                      <p className="text-sm text-foreground font-medium">{summary.estimated_fuel?.toFixed(2) ?? "—"} L</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Última Posição tab */}
+            <TabsContent value="position" className="flex-1 overflow-auto mt-3">{positionLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : positionError || !lastPosition ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Sem dados de posição disponíveis
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-secondary rounded-md border border-border">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Latitude</p>
+                      <p className="font-mono text-sm text-foreground">{lastPosition.lat.toFixed(6)}</p>
+                    </div>
+                    <div className="p-3 bg-secondary rounded-md border border-border">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Longitude</p>
+                      <p className="font-mono text-sm text-foreground">{lastPosition.lon.toFixed(6)}</p>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-secondary rounded-md border border-border flex items-center gap-2.5">
+                    <Gauge className="w-4 h-4 text-primary shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Velocidade</p>
+                      <p className="text-sm text-foreground font-medium">{lastPosition.speed.toFixed(1)} km/h</p>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-secondary rounded-md border border-border flex items-center gap-2.5">
+                    <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Timestamp</p>
+                      <p className="text-sm text-foreground font-medium">
+                        {new Date(lastPosition.timestamp * 1000).toLocaleString("pt-BR")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>

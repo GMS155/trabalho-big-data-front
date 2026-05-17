@@ -9,17 +9,17 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import { TelemetryRecord } from "@/lib/api";
+import { TripTimeline } from "@/lib/api";
 
 interface Props {
-  data: TelemetryRecord[];
+  data: TripTimeline;
 }
 
 export default function SpeedChart({ data }: Props) {
-  const chartData = data.map((r, i) => ({
+  const chartData = data.timestamps.map((ts, i) => ({
     index: i,
-    speed: r.speed,
-    label: new Date(r.timestamp).toLocaleTimeString("pt-BR", {
+    speed: data.speed_kmh[i],
+    label: new Date(ts).toLocaleTimeString("pt-BR", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",

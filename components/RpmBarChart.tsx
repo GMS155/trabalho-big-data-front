@@ -9,10 +9,10 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { RpmRankEntry } from "@/lib/api";
+import { HighRpmEvent } from "@/lib/api";
 
 interface Props {
-  data: RpmRankEntry[];
+  data: HighRpmEvent[];
 }
 
 const COLORS = [

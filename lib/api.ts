@@ -21,52 +21,70 @@ export interface HealthResponse {
   status: "healthy" | "starting";
 }
 
-// GET /data → retorna array direto
-export interface TelemetryRecord {
-  DayNum: number;
-  VehId: number;
-  Trip: number;
-  "Timestamp(ms)": number;
-  "Latitude[deg]": number;
-  "Longitude[deg]": number;
-  "Vehicle Speed[km/h]": number;
-  "MAF[g/sec]": number | null;
-  "Engine RPM[RPM]": number;
-  "Absolute Load[%]": number | null;
-  "OAT[DegC]": number | null;
-  "Fuel Rate[L/hr]": number | null;
-}
-
-// GET /vehicles → { vehicle_ids: number[] }
+// GET /vehicles → { vehicles: number[] }
 export interface VehiclesResponse {
-  vehicle_ids: number[];
+  vehicles: number[];
 }
 
-// GET /vehicles/{veh_id}/trips → { veh_id, trips: [{Trip, DayNum}] }
-export interface Trip {
-  Trip: number;
-  DayNum: number;
+// GET /vehicles/{veh_id}/trips → { veh_id, trips: [{trip, day}] }
+export interface VehicleTrip {
+  trip: number;
+  day: number;
 }
-export interface TripsResponse {
+export interface VehicleTripsResponse {
   veh_id: number;
-  trips: Trip[];
+  trips: VehicleTrip[];
 }
 
-// GET /trips/{trip_id} → { trip_id, count, records: TelemetryRecord[] }
-export interface TripTelemetryResponse {
+// GET /vehicles/{veh_id}/summary
+export interface VehicleSummary {
+  veh_id: number;
+  total_trips: number;
+  avg_speed: number;
+  avg_rpm: number;
+  estimated_fuel: number;
+  anomalies: number;
+}
+
+// GET /vehicles/{veh_id}/last-position
+export interface LastPosition {
+  veh_id: number;
+  lat: number;
+  lon: number;
+  speed: number;
+  timestamp: number;
+}
+
+// GET /trips/{trip_id}
+export interface TripSummary {
+  trip_id: number;
+  veh_id: number;
+  start_time: number;
+  end_time: number;
+  distance_km: number;
+  avg_speed: number;
+}
+
+// GET /trips/{trip_id}/timeline
+export interface TripTimeline {
   trip_id: number;
   count: number;
-  records: TelemetryRecord[];
+  timestamps: number[];
+  speed_kmh: (number | null)[];
+  rpm: (number | null)[];
+  maf_g_per_s: (number | null)[];
 }
 
-// GET /stats/speed → { avg_kmh, max_kmh, min_kmh }
-export interface SpeedStats {
-  avg_kmh: number;
-  max_kmh: number;
-  min_kmh: number;
+// GET /stats/summary
+export interface StatsSummary {
+  total_vehicles: number;
+  total_trips: number;
+  avg_speed: number;
+  total_fuel_estimated: number;
+  top_speeding_vehicle: { veh_id: number; events: number } | null;
 }
 
-// GET /analytics/speeding → { threshold_kmh, count, results: [...] }
+// GET /speeding
 export interface SpeedingEvent {
   VehId: number;
   Trip: number;
@@ -77,115 +95,60 @@ export interface SpeedingEvent {
 }
 export interface SpeedingResponse {
   threshold_kmh: number;
+  filters: { veh_id: number | null; day_min: number | null; day_max: number | null };
   count: number;
-  results: SpeedingEvent[];
+  events: SpeedingEvent[];
 }
 
-// GET /analytics/routes → { precision, count, routes: [...] }
-export interface RouteEntry {
-  lat: number;
-  lon: number;
-  count: number;
-}
-export interface RoutesResponse {
-  precision: number;
-  count: number;
-  routes: RouteEntry[];
-}
-
-// GET /analytics/stops → { min_consecutive_samples, count, stops: [...] }
-export interface StopEntry {
+// GET /analytics/high-rpm
+export interface HighRpmEvent {
   VehId: number;
   Trip: number;
-  DayNum: number;
-  stopped_samples: number;
-  start_timestamp_s: number;
-  end_timestamp_s: number;
-  latitude: number;
-  longitude: number;
-  duration_s: number;
-}
-export interface StopsResponse {
-  min_consecutive_samples: number;
-  count: number;
-  stops: StopEntry[];
-}
-
-// GET /analytics/fuel → { count, results: [...] }
-export interface FuelEntry {
-  VehId: number;
-  Trip: number;
-  DayNum: number;
-  fuel_liters_est: number;
-  avg_maf_g_per_s: number;
-  max_maf_g_per_s: number;
-  sample_count: number;
-}
-export interface FuelResponse {
-  count: number;
-  results: FuelEntry[];
-}
-
-// GET /analytics/rpm-ranking → { count, ranking: [...] }
-export interface RpmRankEntry {
-  rank: number;
-  VehId: number;
+  high_rpm_samples: number;
+  max_rpm: number;
   avg_rpm: number;
-  avg_maf_g_per_s: number;
   avg_speed_kmh: number;
-  moving_samples: number;
 }
-export interface RpmRankingResponse {
+export interface HighRpmResponse {
+  rpm_threshold: number;
+  filters: { veh_id: number | null };
   count: number;
-  ranking: RpmRankEntry[];
-}
-
-// GET /anomalies → { count, records: [...] }
-export interface Anomaly {
-  DayNum: number;
-  VehId: number;
-  Trip: number;
-  "Timestamp(ms)": number;
-  "Latitude[deg]": number;
-  "Longitude[deg]": number;
-  "Vehicle Speed[km/h]": number;
-  "MAF[g/sec]": number | null;
-  "Engine RPM[RPM]": number;
-  rpm_z?: number;
-  maf_z?: number;
-}
-export interface AnomaliesResponse {
-  count: number;
-  records: Anomaly[];
+  events: HighRpmEvent[];
 }
 
 // --- API Functions ---
 
 export const getHealth = () => apiFetch<HealthResponse>("/health");
 
-export const getData = (limit = 50, offset = 0) =>
-  apiFetch<TelemetryRecord[]>(`/data?limit=${limit}&offset=${offset}`);
-
 export const getVehicles = () => apiFetch<VehiclesResponse>("/vehicles");
 
 export const getVehicleTrips = (vehId: number) =>
-  apiFetch<TripsResponse>(`/vehicles/${vehId}/trips`);
+  apiFetch<VehicleTripsResponse>(`/vehicles/${vehId}/trips`);
 
-export const getTripTelemetry = (tripId: number, limit = 200) =>
-  apiFetch<TripTelemetryResponse>(`/trips/${tripId}?limit=${limit}`);
+export const getVehicleSummary = (vehId: number) =>
+  apiFetch<VehicleSummary>(`/vehicles/${vehId}/summary`);
 
-export const getSpeedStats = () => apiFetch<SpeedStats>("/stats/speed");
+export const getVehicleLastPosition = (vehId: number) =>
+  apiFetch<LastPosition>(`/vehicles/${vehId}/last-position`);
 
-export const getSpeedingEvents = (threshold = 80) =>
-  apiFetch<SpeedingResponse>(`/analytics/speeding?threshold=${threshold}`);
+export const getTripSummary = (tripId: number) =>
+  apiFetch<TripSummary>(`/trips/${tripId}`);
 
-export const getTopRoutes = () => apiFetch<RoutesResponse>("/analytics/routes");
+export const getTripTimeline = (tripId: number, limit = 500) =>
+  apiFetch<TripTimeline>(`/trips/${tripId}/timeline?limit=${limit}`);
 
-export const getLongStops = () => apiFetch<StopsResponse>("/analytics/stops");
+export const getStatsSummary = (speedingThreshold = 80) =>
+  apiFetch<StatsSummary>(`/stats/summary?speeding_threshold=${speedingThreshold}`);
 
-export const getFuelConsumption = () => apiFetch<FuelResponse>("/analytics/fuel");
+export const getSpeedingEvents = (threshold = 80, vehId?: number) => {
+  const params = new URLSearchParams({ threshold: String(threshold) });
+  if (vehId !== undefined) params.append("veh_id", String(vehId));
+  return apiFetch<SpeedingResponse>(`/speeding?${params}`);
+};
 
-export const getRpmRanking = () => apiFetch<RpmRankingResponse>("/analytics/rpm-ranking");
+export const getHighRpm = (rpmThreshold = 3500, vehId?: number) => {
+  const params = new URLSearchParams({ rpm_threshold: String(rpmThreshold) });
+  if (vehId !== undefined) params.append("veh_id", String(vehId));
+  return apiFetch<HighRpmResponse>(`/analytics/high-rpm?${params}`);
+};
 
-export const getAnomalies = (limit = 50) =>
-  apiFetch<AnomaliesResponse>(`/anomalies?limit=${limit}`);

@@ -1,4 +1,4 @@
-import { FuelEntry } from "@/lib/api";
+import { SpeedingEvent } from "@/lib/api";
 import {
   Table,
   TableBody,
@@ -9,11 +9,11 @@ import {
 } from "@/components/ui/table";
 
 interface Props {
-  data: FuelEntry[];
+  data: SpeedingEvent[];
 }
 
 export default function FuelTable({ data }: Props) {
-  const sorted = [...data].sort((a, b) => b.fuel_liters_est - a.fuel_liters_est);
+  const sorted = [...data].sort((a, b) => b.speeding_records - a.speeding_records);
 
   return (
     <Table>
@@ -22,10 +22,10 @@ export default function FuelTable({ data }: Props) {
           <TableHead className="text-muted-foreground text-xs">Veículo</TableHead>
           <TableHead className="text-muted-foreground text-xs">Viagem</TableHead>
           <TableHead className="text-muted-foreground text-xs text-right">
-            Consumo Est.
+            Vel. Máx.
           </TableHead>
           <TableHead className="text-muted-foreground text-xs text-right">
-            MAF Médio
+            Registros
           </TableHead>
         </TableRow>
       </TableHeader>
@@ -39,11 +39,11 @@ export default function FuelTable({ data }: Props) {
               {entry.Trip}
             </TableCell>
             <TableCell className="text-right text-sm font-medium tabular-nums py-2">
-              {entry.fuel_liters_est.toFixed(4)}
-              <span className="text-muted-foreground text-xs ml-1">L</span>
+              {entry.max_speed_kmh.toFixed(1)}
+              <span className="text-muted-foreground text-xs ml-1">km/h</span>
             </TableCell>
             <TableCell className="text-right text-xs tabular-nums py-2 text-muted-foreground">
-              {entry.avg_maf_g_per_s.toFixed(2)} g/s
+              {entry.speeding_records}
             </TableCell>
           </TableRow>
         ))}

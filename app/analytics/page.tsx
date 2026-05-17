@@ -3,13 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   getSpeedingEvents,
-  getTopRoutes,
-  getLongStops,
-  getFuelConsumption,
+  getHighRpm,
   SpeedingEvent,
-  RouteEntry,
-  StopEntry,
-  FuelEntry,
+  HighRpmEvent,
 } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
@@ -21,15 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
 import { Badge } from "@/components/ui/badge";
 
 function LoadingState() {
@@ -64,20 +51,12 @@ export default function AnalyticsPage() {
   const [loadingSpeeding, setLoadingSpeeding] = useState(false);
   const [errorSpeeding, setErrorSpeeding] = useState(false);
 
-  // Routes
-  const [routes, setRoutes] = useState<RouteEntry[]>([]);
-  const [loadingRoutes, setLoadingRoutes] = useState(true);
-  const [errorRoutes, setErrorRoutes] = useState(false);
-
-  // Stops
-  const [stops, setStops] = useState<StopEntry[]>([]);
-  const [loadingStops, setLoadingStops] = useState(true);
-  const [errorStops, setErrorStops] = useState(false);
-
-  // Fuel
-  const [fuel, setFuel] = useState<FuelEntry[]>([]);
-  const [loadingFuel, setLoadingFuel] = useState(true);
-  const [errorFuel, setErrorFuel] = useState(false);
+  // High RPM
+  const [rpmThreshold, setRpmThreshold] = useState(3500);
+  const [pendingRpmThreshold, setPendingRpmThreshold] = useState(3500);
+  const [rpmEvents, setRpmEvents] = useState<HighRpmEvent[]>([]);
+  const [loadingRpm, setLoadingRpm] = useState(true);
+  const [errorRpm, setErrorRpm] = useState(false);
 
   const fetchSpeeding = useCallback(async (t: number) => {
     setLoadingSpeeding(true);
@@ -92,31 +71,24 @@ export default function AnalyticsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchSpeeding(threshold);
-    getTopRoutes()
-      .then((d) => setRoutes(d.routes))
-      .catch(() => setErrorRoutes(true))
-      .finally(() => setLoadingRoutes(false));
-    getLongStops()
-      .then((d) => setStops(d.stops))
-      .catch(() => setErrorStops(true))
-      .finally(() => setLoadingStops(false));
-    getFuelConsumption()
-      .then((d) => setFuel(d.fuel))
-      .catch(() => setErrorFuel(true))
-      .finally(() => setLoadingFuel(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fetchRpm = useCallback(async (t: number) => {
+    setLoadingRpm(true);
+    setErrorRpm(false);
+    try {
+      const data = await getHighRpm(t);
+      setRpmEvents(data.events);
+    } catch {
+      setErrorRpm(true);
+    } finally {
+      setLoadingRpm(false);
+    }
   }, []);
 
-  const applyThreshold = () => {
-    setThreshold(pendingThreshold);
-    fetchSpeeding(pendingThreshold);
-  };
-
-  const fuelSorted = [...fuel].sort(
-    (a, b) => b.estimated_fuel_liters - a.estimated_fuel_liters
-  );
+  useEffect(() => {
+    fetchSpeeding(threshold);
+    fetchRpm(rpmThreshold);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="p-6 space-y-6">
@@ -132,14 +104,8 @@ export default function AnalyticsPage() {
           <TabsTrigger value="speeding" className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground">
             Excesso de Vel.
           </TabsTrigger>
-          <TabsTrigger value="routes" className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground">
-            Rotas
-          </TabsTrigger>
-          <TabsTrigger value="stops" className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground">
-            Paradas
-          </TabsTrigger>
-          <TabsTrigger value="fuel" className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground">
-            Combustível
+          <TabsTrigger value="rpm" className="text-xs data-[state=active]:bg-card data-[state=active]:text-foreground">
+            Alta Rotação
           </TabsTrigger>
         </TabsList>
 
@@ -173,7 +139,7 @@ export default function AnalyticsPage() {
                 <span>120 km/h</span>
               </div>
               <button
-                onClick={applyThreshold}
+                onClick={() => { setThreshold(pendingThreshold); fetchSpeeding(pendingThreshold); }}
                 className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
               >
                 Aplicar filtro
@@ -205,20 +171,22 @@ export default function AnalyticsPage() {
                     <TableRow className="border-border hover:bg-transparent">
                       <TableHead className="text-muted-foreground text-xs">Veículo</TableHead>
                       <TableHead className="text-muted-foreground text-xs">Viagem</TableHead>
-                      <TableHead className="text-muted-foreground text-xs">Timestamp</TableHead>
-                      <TableHead className="text-muted-foreground text-xs text-right">Velocidade</TableHead>
+                      <TableHead className="text-muted-foreground text-xs">Dia</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Vel. Máx.</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Registros</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {speedingEvents.slice(0, 100).map((e, i) => (
                       <TableRow key={i} className="border-border text-xs">
-                        <TableCell className="py-2 font-mono text-foreground/80">{e.vehicle_id}</TableCell>
-                        <TableCell className="py-2 font-mono text-foreground/60">{e.trip_id}</TableCell>
-                        <TableCell className="py-2 text-muted-foreground whitespace-nowrap">
-                          {new Date(e.timestamp).toLocaleString("pt-BR")}
-                        </TableCell>
+                        <TableCell className="py-2 font-mono text-foreground/80">{e.VehId}</TableCell>
+                        <TableCell className="py-2 font-mono text-foreground/60">{e.Trip}</TableCell>
+                        <TableCell className="py-2 text-muted-foreground">{e.DayNum}</TableCell>
                         <TableCell className="py-2 text-right tabular-nums text-chart-4 font-medium">
-                          {e.speed.toFixed(1)} km/h
+                          {e.max_speed_kmh.toFixed(1)} km/h
+                        </TableCell>
+                        <TableCell className="py-2 text-right tabular-nums text-muted-foreground">
+                          {e.speeding_records}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -229,64 +197,60 @@ export default function AnalyticsPage() {
           </div>
         </TabsContent>
 
-        {/* Routes Tab */}
-        <TabsContent value="routes" className="mt-4">
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-medium text-foreground">
-                Rotas mais frequentes
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Agrupadas por grade lat/lon
-              </p>
-            </div>
-            {loadingRoutes ? (
-              <LoadingState />
-            ) : errorRoutes ? (
-              <ErrorState message="Erro ao carregar rotas" />
-            ) : routes.length === 0 ? (
-              <EmptyState />
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-border hover:bg-transparent">
-                      <TableHead className="text-muted-foreground text-xs">#</TableHead>
-                      <TableHead className="text-muted-foreground text-xs text-right">Latitude</TableHead>
-                      <TableHead className="text-muted-foreground text-xs text-right">Longitude</TableHead>
-                      <TableHead className="text-muted-foreground text-xs text-right">Frequência</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {routes.slice(0, 50).map((r, i) => (
-                      <TableRow key={i} className="border-border text-xs">
-                        <TableCell className="py-2 text-muted-foreground">{i + 1}</TableCell>
-                        <TableCell className="py-2 text-right tabular-nums text-foreground/80">{r.lat.toFixed(5)}</TableCell>
-                        <TableCell className="py-2 text-right tabular-nums text-foreground/80">{r.lon.toFixed(5)}</TableCell>
-                        <TableCell className="py-2 text-right tabular-nums font-medium text-chart-1">{r.count}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+        {/* High RPM Tab */}
+        <TabsContent value="rpm" className="space-y-4 mt-4">
+          <div className="bg-card border border-border rounded-lg p-4 space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">
+                  Limiar de RPM
+                </label>
+                <span className="text-sm font-semibold text-primary tabular-nums">
+                  {pendingRpmThreshold} RPM
+                </span>
               </div>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Stops Tab */}
-        <TabsContent value="stops" className="mt-4">
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <div className="px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-medium text-foreground">Paradas longas</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Eventos com velocidade = 0
-              </p>
+              <Slider
+                min={2000}
+                max={6000}
+                step={500}
+                value={[pendingRpmThreshold]}
+                onValueChange={([v]) => setPendingRpmThreshold(v)}
+                onValueCommit={([v]) => {
+                  setPendingRpmThreshold(v);
+                  setRpmThreshold(v);
+                  fetchRpm(v);
+                }}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>2000 RPM</span>
+                <span>6000 RPM</span>
+              </div>
+              <button
+                onClick={() => { setRpmThreshold(pendingRpmThreshold); fetchRpm(pendingRpmThreshold); }}
+                className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              >
+                Aplicar filtro
+              </button>
             </div>
-            {loadingStops ? (
+          </div>
+
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">
+                Viagens com RPM acima de {rpmThreshold}
+              </span>
+              {!loadingRpm && (
+                <Badge variant="outline" className="text-xs border-chart-1/40 text-chart-1">
+                  {rpmEvents.length} eventos
+                </Badge>
+              )}
+            </div>
+            {loadingRpm ? (
               <LoadingState />
-            ) : errorStops ? (
-              <ErrorState message="Erro ao carregar paradas" />
-            ) : stops.length === 0 ? (
+            ) : errorRpm ? (
+              <ErrorState message="Erro ao carregar eventos de alta rotação" />
+            ) : rpmEvents.length === 0 ? (
               <EmptyState />
             ) : (
               <div className="overflow-x-auto">
@@ -294,86 +258,29 @@ export default function AnalyticsPage() {
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
                       <TableHead className="text-muted-foreground text-xs">Veículo</TableHead>
-                      <TableHead className="text-muted-foreground text-xs">Início</TableHead>
-                      <TableHead className="text-muted-foreground text-xs">Fim</TableHead>
-                      <TableHead className="text-muted-foreground text-xs text-right">Duração</TableHead>
+                      <TableHead className="text-muted-foreground text-xs">Viagem</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Amostras</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">RPM Máx.</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">RPM Médio</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {stops.map((s, i) => (
+                    {rpmEvents.slice(0, 100).map((e, i) => (
                       <TableRow key={i} className="border-border text-xs">
-                        <TableCell className="py-2 font-mono text-foreground/80">{s.vehicle_id}</TableCell>
-                        <TableCell className="py-2 text-muted-foreground whitespace-nowrap">
-                          {new Date(s.start_time).toLocaleString("pt-BR")}
+                        <TableCell className="py-2 font-mono text-foreground/80">{e.VehId}</TableCell>
+                        <TableCell className="py-2 font-mono text-foreground/60">{e.Trip}</TableCell>
+                        <TableCell className="py-2 text-right tabular-nums text-muted-foreground">{e.high_rpm_samples}</TableCell>
+                        <TableCell className="py-2 text-right tabular-nums text-chart-1 font-medium">
+                          {e.max_rpm.toFixed(0)}
                         </TableCell>
-                        <TableCell className="py-2 text-muted-foreground whitespace-nowrap">
-                          {new Date(s.end_time).toLocaleString("pt-BR")}
-                        </TableCell>
-                        <TableCell className="py-2 text-right tabular-nums font-medium">
-                          {Math.floor(s.duration_seconds / 60)}
-                          <span className="text-muted-foreground ml-1">min</span>
+                        <TableCell className="py-2 text-right tabular-nums text-foreground/80">
+                          {e.avg_rpm.toFixed(0)}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* Fuel Tab */}
-        <TabsContent value="fuel" className="mt-4 space-y-4">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <h2 className="text-sm font-medium text-foreground mb-1">
-              Consumo de Combustível por Veículo
-            </h2>
-            <p className="text-xs text-muted-foreground mb-4">
-              Estimativa em litros via sensor MAF
-            </p>
-            {loadingFuel ? (
-              <LoadingState />
-            ) : errorFuel ? (
-              <ErrorState message="Erro ao carregar combustível" />
-            ) : fuelSorted.length === 0 ? (
-              <EmptyState />
-            ) : (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={fuelSorted} margin={{ left: 0, right: 16, top: 4, bottom: 40 }}>
-                  <XAxis
-                    dataKey="vehicle_id"
-                    tick={{ fill: "oklch(0.55 0.01 240)", fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                    angle={-35}
-                    textAnchor="end"
-                    interval={0}
-                  />
-                  <YAxis
-                    tick={{ fill: "oklch(0.55 0.01 240)", fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    unit=" L"
-                    width={50}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "oklch(0.16 0.005 240)",
-                      border: "1px solid oklch(0.24 0.005 240)",
-                      borderRadius: "6px",
-                      fontSize: "12px",
-                      color: "oklch(0.94 0.005 240)",
-                    }}
-                    formatter={(v: number) => [`${v.toFixed(2)} L`, "Combustível"]}
-                    cursor={{ fill: "oklch(0.20 0.005 240)" }}
-                  />
-                  <Bar dataKey="estimated_fuel_liters" radius={[4, 4, 0, 0]}>
-                    {fuelSorted.map((_, i) => (
-                      <Cell key={i} fill={`oklch(${0.6 - i * 0.03} 0.2 220)`} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
             )}
           </div>
         </TabsContent>

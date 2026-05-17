@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        - NEXT_PUBLIC_API_URL=http://172.18.0.1:8000
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
     ports:
       - "3000:3000"
     extra_hosts:

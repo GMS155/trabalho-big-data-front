@@ -1,68 +1,65 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAnomalies, Anomaly } from "@/lib/api";
+import { getHighRpm, HighRpmEvent } from "@/lib/api";
 import AnomaliesTable from "@/components/AnomaliesTable";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle } from "lucide-react";
+import { Zap } from "lucide-react";
 
 export default function AnomaliesPage() {
-  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
+  const [events, setEvents] = useState<HighRpmEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [filter, setFilter] = useState<"all" | "RPM" | "MAF">("all");
+  const [threshold, setThreshold] = useState<3000 | 3500 | 4000 | 5000>(3500);
 
   useEffect(() => {
-    getAnomalies()
-      .then((d) => setAnomalies(d.anomalies))
+    setLoading(true);
+    setError(false);
+    getHighRpm(threshold)
+      .then((d) => setEvents(d.events))
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, []);
+  }, [threshold]);
 
-  const filtered =
-    filter === "all" ? anomalies : anomalies.filter((a) => a.metric === filter);
-
-  const criticalCount = anomalies.filter(
-    (a) => Math.abs(a.z_score) > 3
-  ).length;
+  const criticalCount = events.filter((a) => a.max_rpm > 5000).length;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Anomalias</h1>
+          <h1 className="text-xl font-semibold text-foreground">Condução Agressiva</h1>
           <p className="text-sm text-muted-foreground">
-            Detecção via z-score em RPM e MAF
+            Viagens com rotação elevada em movimento
           </p>
         </div>
         {!loading && !error && criticalCount > 0 && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-destructive/10 border border-destructive/30">
-            <AlertTriangle className="w-4 h-4 text-destructive-foreground" />
+            <Zap className="w-4 h-4 text-destructive-foreground" />
             <span className="text-sm text-destructive-foreground font-medium">
-              {criticalCount} anomalia{criticalCount !== 1 ? "s" : ""} crítica{criticalCount !== 1 ? "s" : ""}
+              {criticalCount} evento{criticalCount !== 1 ? "s" : ""} crítico{criticalCount !== 1 ? "s" : ""}
             </span>
           </div>
         )}
       </div>
 
-      {/* Filter Buttons */}
+      {/* Threshold Filter */}
       <div className="flex items-center gap-2">
-        {(["all", "RPM", "MAF"] as const).map((f) => (
+        {([3000, 3500, 4000, 5000] as const).map((t) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
+            key={t}
+            onClick={() => setThreshold(t)}
             className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
-              filter === f
+              threshold === t
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-secondary text-muted-foreground border-border hover:text-foreground hover:bg-card"
             }`}
           >
-            {f === "all" ? "Todos" : f}
+            &gt;{t} RPM
           </button>
         ))}
         {!loading && (
           <Badge variant="outline" className="text-xs border-border text-muted-foreground ml-auto">
-            {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
+            {events.length} resultado{events.length !== 1 ? "s" : ""}
           </Badge>
         )}
       </div>
@@ -75,22 +72,22 @@ export default function AnomaliesPage() {
           </div>
         ) : error ? (
           <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
-            Erro ao carregar anomalias. Verifique a API.
+            Erro ao carregar eventos. Verifique a API.
           </div>
-        ) : filtered.length === 0 ? (
+        ) : events.length === 0 ? (
           <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
-            Nenhuma anomalia encontrada
+            Nenhum evento encontrado para este limiar
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <AnomaliesTable data={filtered} />
+            <AnomaliesTable data={events} />
           </div>
         )}
       </div>
 
       {!loading && !error && (
         <p className="text-xs text-muted-foreground">
-          Linhas em vermelho indicam z-score acima de 3 (anomalias críticas).
+          Linhas em vermelho indicam RPM máximo acima de 5000 (eventos críticos).
         </p>
       )}
     </div>

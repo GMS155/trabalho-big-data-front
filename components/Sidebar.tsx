@@ -7,7 +7,6 @@ import {
   Car,
   Route,
   BarChart3,
-  AlertTriangle,
   Gauge,
   Menu,
   X,
@@ -20,7 +19,6 @@ const navItems = [
   { href: "/vehicles", label: "Veículos", icon: Car },
   { href: "/trips", label: "Viagens", icon: Route },
   { href: "/analytics", label: "Análises", icon: BarChart3 },
-  { href: "/anomalies", label: "Anomalias", icon: AlertTriangle },
 ];
 
 export default function Sidebar() {
